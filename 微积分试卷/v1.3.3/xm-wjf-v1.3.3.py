@@ -27,7 +27,7 @@ class CodeGeneratorApp:
 # 选择题格式模板
     def generate_choice_code(self, options, question, answer, option_a, option_b, option_c, option_d):
         template = f"""
-\\begin{{example}}{{({options}分)}}
+\\begin{{example}}[{options}分]
     {question}\\ \\ans{{{answer}}}
     \\begin{{tasks}}(4)
         \\task {option_a}
@@ -60,7 +60,7 @@ class CodeGeneratorApp:
 # 填空题格式模板
     def generate_exercise_code(self, options, knowledge, question, answer):
         template = f"""
-\\begin{{example}}{{({options}分)}}{{{knowledge}}}
+\\begin{{example}}[{options}分]{{{knowledge}}}
     {question} \\ \\ans{{{answer}}}.
 \\end{{example}}
         """
@@ -69,7 +69,7 @@ class CodeGeneratorApp:
 # 应用题与计算题格式模板
     def generate_dati_code(self, options, question):
         template = f"""
-\\begin{{example}}{{({options}分)}}
+\\begin{{example}}[{options}分]
     {question}.
 \\end{{example}}
         """
@@ -89,32 +89,51 @@ class CodeGeneratorApp:
         processed_text = ""
         i = 0
         while i < len(input_text):
-            if input_text[i] == '\n':  # Check if character is a newline
+            if input_text[i] == '\n':
                 processed_text += input_text[i]
                 i += 1
-            elif not ('\u4e00' <= input_text[i] <= '\u9fff'):  # Check if character is non-Chinese
-                j = i + 1
+            elif not ('\u4e00' <= input_text[i] <= '\u9fff'):
+                j = i
                 while j < len(input_text) and not ('\u4e00' <= input_text[j] <= '\u9fff'):
                     j += 1
-                processed_text += f"${input_text[i:j]}$"
+                processed_text += f"${input_text[i:j]}$"  # 考虑可能的空白
                 i = j
             else:
                 processed_text += input_text[i]
                 i += 1
+
+        # 检查单独行的$并移动
+        lines = processed_text.split('\n')
+        new_lines = []
+        for line in lines:
+            if line.strip() == '$':
+                if new_lines:
+                    new_lines[-1] += '$'
+            else:
+                new_lines.append(line)
+        
+        processed_text = '\n'.join(new_lines)
+
 
 
 
         pattern_ed = r"(?<!\\)([de]|d(x|y|z))"  # 匹配非转义的独立字母d和e，或者单独的dx、dy、dz
         processed_text = re.sub(pattern_ed, r"\\mathrm{\1}", processed_text)
 
-        pattern_2 = r"(?<!\\)([()\[\]])"  # 匹配非转义的符号 ( [  ) ]
-        processed_text = re.sub(pattern_2, lambda x: x.group(1) if "\\" in x.group(1) else f"\\left{x.group(1)}", processed_text)
 
         pattern_3 = r"\\textcircled\{(\d+)\}" #更改圈数字的格式
         processed_text = re.sub(pattern_3, lambda x: r"\ding{" + str(int(x.group(1)) + 191) + r"}" if int(x.group(1)) <= 10 else x.group(0), processed_text)
 
         processed_text = processed_text.replace(r"\int", r"\displaystyle\int")
         processed_text = processed_text.replace(r"\frac", r"\dfrac")
+
+        # 在 [ 和 ( 前加上 \left
+        processed_text = re.sub(r"(?<!\\)(\[|\()", r"\\left\1", processed_text)
+        # 在 ] 前加上 \right
+        processed_text = re.sub(r"(?<!\\)(\]|\))", r"\\right]", processed_text)
+        # 避免重复添加 \left 和 \right
+        processed_text = re.sub(r"\\left\\left", r"\\left", processed_text)
+        processed_text = re.sub(r"\\right\\right", r"\\right", processed_text)
 
         processed_text = processed_text.replace(r"^{'''}", r"^{\prime\prime\prime}")
         processed_text = processed_text.replace(r"^{''}", r"^{\prime\prime}")
